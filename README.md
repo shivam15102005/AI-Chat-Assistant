@@ -21,6 +21,11 @@ A production-style full-stack AI chat application with real-time OpenAI streamin
 
 ![AI Chat Assistant](https://github.com/shivam15102005/AI-Chat-Assistant/blob/main/Screenshot%202026-09-21%20215203.png)
 
+![AI Chat Assistant](https://github.com/shivam15102005/AI-Chat-Assistant/blob/main/Screenshot%202026-09-21%20215223.png)
+
+![AI Chat Assistant](https://github.com/shivam15102005/AI-Chat-Assistant/blob/main/Screenshot%202026-09-21%20215237.png)
+
+
 
 ## Architecture
 
