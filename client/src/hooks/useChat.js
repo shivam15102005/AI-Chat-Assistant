@@ -15,10 +15,7 @@ import {
 
 const DEFAULT_TONE = 'professional';
 
-function makeLocalUserMessage(
-  content,
-  tone
-) {
+function makeLocalUserMessage(content, tone) {
   return {
     id: `local-user-${Date.now()}`,
     role: 'user',
@@ -60,63 +57,104 @@ export function useChat() {
     setMobileSidebarOpen,
   ] = useState(false);
 
+  /*
+   * Always keep the latest active conversation ID
+   * available synchronously.
+   */
   const activeIdRef =
     useRef(null);
 
-  useEffect(() => {
-    activeIdRef.current =
-      activeConversationId;
-  }, [activeConversationId]);
+  /*
+   * Update BOTH the React state and the ref
+   * immediately.
+   */
+  const setActiveConversation =
+    useCallback((id) => {
+      activeIdRef.current = id;
+      setActiveConversationId(id);
+    }, []);
 
   /*
-   * Refresh sidebar conversation list.
+   * Refresh the sidebar conversation list.
    */
-
   const refreshConversations =
     useCallback(async () => {
       const data =
         await listConversations();
 
-      setConversations(
-        data.conversations || []
-      );
+      const items =
+        data.conversations || [];
 
-      return (
-        data.conversations || []
-      );
+      setConversations(items);
+
+      return items;
     }, []);
 
   /*
    * Open an existing conversation.
    */
-
   const loadConversation =
-    useCallback(async (id) => {
-      setError('');
+    useCallback(
+      async (id) => {
+        if (!id) {
+          return;
+        }
 
-      setActiveConversationId(id);
+        setError('');
 
-      setMobileSidebarOpen(false);
+        /*
+         * Update the active conversation immediately.
+         */
+        setActiveConversation(id);
 
-      try {
-        const data =
-          await getConversation(id);
+        /*
+         * Clear old conversation UI immediately.
+         */
+        setMessages([]);
+        setInput('');
+        setMobileSidebarOpen(false);
 
-        setMessages(
-          data.conversation.messages ||
-            []
-        );
-      } catch (err) {
-        setError(err.message);
-      }
-    }, []);
+        try {
+          const data =
+            await getConversation(id);
+
+          /*
+           * If the user switched to another
+           * conversation while this request
+           * was running, ignore this response.
+           */
+          if (
+            activeIdRef.current !== id
+          ) {
+            return;
+          }
+
+          setMessages(
+            data.conversation?.messages || []
+          );
+        } catch (err) {
+          if (
+            activeIdRef.current === id
+          ) {
+            setError(
+              err?.message ||
+                'Failed to load conversation.'
+            );
+          }
+        }
+      },
+      [setActiveConversation]
+    );
 
   /*
    * Create a fresh conversation.
    */
-
   const startNewChat =
     useCallback(async () => {
+      /*
+       * Don't create another chat while
+       * an AI response is being streamed.
+       */
       if (isStreaming) {
         return;
       }
@@ -130,6 +168,20 @@ export function useChat() {
         const conversation =
           data.conversation;
 
+        /*
+         * IMPORTANT:
+         * Update the ref immediately.
+         * This fixes the stale conversation ID
+         * problem after clicking New Chat.
+         */
+        setActiveConversation(
+          conversation._id
+        );
+
+        /*
+         * Add the new conversation
+         * to the top of the sidebar.
+         */
         setConversations((current) => [
           {
             id: conversation._id,
@@ -145,28 +197,32 @@ export function useChat() {
 
           ...current.filter(
             (item) =>
-              item.id !== conversation._id
+              item.id !==
+              conversation._id
           ),
         ]);
 
-        setActiveConversationId(
-          conversation._id
-        );
-
+        /*
+         * Reset chat UI.
+         */
         setMessages([]);
-
         setInput('');
-
+        setError('');
         setMobileSidebarOpen(false);
       } catch (err) {
-        setError(err.message);
+        setError(
+          err?.message ||
+            'Failed to create a new conversation.'
+        );
       }
-    }, [isStreaming]);
+    }, [
+      isStreaming,
+      setActiveConversation,
+    ]);
 
   /*
    * Delete conversation.
    */
-
   const deleteChat =
     useCallback(
       async (id) => {
@@ -185,6 +241,10 @@ export function useChat() {
 
           setConversations(remaining);
 
+          /*
+           * If the deleted conversation was active,
+           * open another conversation or create a new one.
+           */
           if (
             activeConversationId === id
           ) {
@@ -197,7 +257,10 @@ export function useChat() {
             }
           }
         } catch (err) {
-          setError(err.message);
+          setError(
+            err?.message ||
+              'Failed to delete conversation.'
+          );
         }
       },
       [
@@ -212,19 +275,21 @@ export function useChat() {
   /*
    * Send message + receive SSE stream.
    */
-
   const sendMessage =
     useCallback(async () => {
       const content =
         input.trim();
 
+      /*
+       * Always read the most recent conversation
+       * directly from the ref.
+       */
       const conversationId =
         activeIdRef.current;
 
       /*
-       * Prevent empty or duplicate sends.
+       * Prevent invalid or duplicate sends.
        */
-
       if (
         !content ||
         !conversationId ||
@@ -234,13 +299,11 @@ export function useChat() {
       }
 
       setError('');
-
       setInput('');
 
       /*
-       * Add user message immediately.
+       * Add the user message immediately.
        */
-
       const localUserMessage =
         makeLocalUserMessage(
           content,
@@ -257,13 +320,11 @@ export function useChat() {
       /*
        * Temporary assistant message.
        */
-
       const streamingId =
         `stream-${Date.now()}`;
 
       setMessages((current) => [
         ...current,
-
         {
           id: streamingId,
           role: 'assistant',
@@ -281,9 +342,8 @@ export function useChat() {
           tone,
 
           /*
-           * Backend starts the stream.
+           * Backend has started the stream.
            */
-
           onStart: (event) => {
             if (event.title) {
               setConversations(
@@ -306,7 +366,6 @@ export function useChat() {
           /*
            * Append every incoming AI chunk.
            */
-
           onDelta: (delta) => {
             setMessages((current) =>
               current.map(
@@ -327,7 +386,6 @@ export function useChat() {
           /*
            * Stream completed.
            */
-
           onDone: (event) => {
             setMessages((current) =>
               current.map(
@@ -338,7 +396,8 @@ export function useChat() {
                         ...message,
                         ...event.message,
                         streaming: false,
-                        id: event.message.id,
+                        id:
+                          event.message.id,
                       }
                     : message
               )
@@ -356,8 +415,8 @@ export function useChat() {
 
                   return [
                     {
-                      id: event
-                        .conversation.id,
+                      id:
+                        event.conversation.id,
 
                       title:
                         event.conversation
@@ -394,9 +453,8 @@ export function useChat() {
         });
       } catch (err) {
         /*
-         * Remove incomplete AI message.
+         * Remove incomplete assistant message.
          */
-
         setMessages((current) =>
           current.filter(
             (message) =>
@@ -405,13 +463,15 @@ export function useChat() {
           )
         );
 
-        setError(err.message);
+        setError(
+          err?.message ||
+            'Failed to send message.'
+        );
 
         /*
-         * Refresh sidebar in case
-         * backend state changed.
+         * Refresh sidebar in case the backend
+         * already changed the conversation.
          */
-
         await refreshConversations().catch(
           () => undefined
         );
@@ -429,7 +489,6 @@ export function useChat() {
    * Prevent duplicate initialization
    * under React StrictMode.
    */
-
   const initializedRef =
     useRef(false);
 
@@ -447,7 +506,6 @@ export function useChat() {
         /*
          * Load existing conversations.
          */
-
         const data =
           await listConversations();
 
@@ -463,7 +521,6 @@ export function useChat() {
         /*
          * Open newest conversation.
          */
-
         if (items[0]) {
           const conversationData =
             await getConversation(
@@ -471,13 +528,16 @@ export function useChat() {
             );
 
           if (!cancelled) {
-            setActiveConversationId(
+            /*
+             * Update the ref immediately.
+             */
+            setActiveConversation(
               items[0].id
             );
 
             setMessages(
               conversationData
-                .conversation.messages ||
+                .conversation?.messages ||
                 []
             );
           }
@@ -487,25 +547,30 @@ export function useChat() {
          * No conversation exists.
          * Create an empty one.
          */
-
         else {
           const created =
             await createConversation();
 
           if (!cancelled) {
-            setActiveConversationId(
-              created.conversation._id
+            const newId =
+              created.conversation._id;
+
+            /*
+             * Update the ref immediately.
+             */
+            setActiveConversation(
+              newId
             );
 
             setMessages([]);
 
             setConversations([
               {
-                id:
-                  created.conversation._id,
+                id: newId,
 
                 title:
-                  created.conversation.title,
+                  created.conversation
+                    .title,
 
                 createdAt:
                   created.conversation
@@ -525,7 +590,10 @@ export function useChat() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err.message);
+          setError(
+            err?.message ||
+              'Failed to initialize chat.'
+          );
         }
       } finally {
         if (!cancelled) {
@@ -539,7 +607,7 @@ export function useChat() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setActiveConversation]);
 
   return {
     conversations,
