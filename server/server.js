@@ -152,14 +152,14 @@ async function startServer() {
     await connectDatabase();
 
     const server = app.listen(
-  env.PORT,
-  '0.0.0.0',
-  () => {
-    console.log(
-      `AI Chat Assistant server running on port ${env.PORT}`
+      env.PORT,
+      '0.0.0.0',
+      () => {
+        console.log(
+          `AI Chat Assistant server running on port ${env.PORT}`
+        );
+      }
     );
-  }
-);
 
     /*
      * Graceful shutdown.
@@ -175,9 +175,7 @@ async function startServer() {
           async () => {
             try {
               const mongoose =
-                await import(
-                  'mongoose'
-                );
+                await import('mongoose');
 
               await mongoose.default.connection.close();
 
