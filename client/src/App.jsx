@@ -12,7 +12,8 @@ export default function App() {
     () =>
       chat.conversations.find(
         (conversation) =>
-          conversation.id === chat.activeConversationId
+          conversation.id ===
+          chat.activeConversationId
       ),
     [
       chat.activeConversationId,
@@ -50,6 +51,16 @@ export default function App() {
       />
 
       <ChatWindow
+        /*
+         * IMPORTANT:
+         * Force ChatWindow and ChatInput to
+         * remount whenever the conversation changes.
+         */
+        key={
+          chat.activeConversationId ||
+          'new-conversation'
+        }
+
         conversation={activeConversation}
         messages={chat.messages}
         input={chat.input}
