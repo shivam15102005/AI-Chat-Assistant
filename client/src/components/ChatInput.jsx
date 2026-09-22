@@ -9,26 +9,42 @@ export default function ChatInput({
   onSend,
   disabled,
 }) {
+  /*
+   * Message can be sent only when:
+   * - the AI is not currently streaming
+   * - the input is not empty
+   */
+  const canSend =
+    !disabled &&
+    value.trim().length > 0;
+
+  /*
+   * Handle form submission.
+   */
   const handleSubmit = (event) => {
     event.preventDefault();
 
-    if (disabled || !value.trim()) {
+    if (!canSend) {
       return;
     }
 
     onSend();
   };
 
+  /*
+   * Handle keyboard input.
+   *
+   * Enter = send
+   * Shift + Enter = new line
+   */
   const handleKeyDown = (event) => {
-    // Enter = send
-    // Shift + Enter = newline
     if (
       event.key === 'Enter' &&
       !event.shiftKey
     ) {
       event.preventDefault();
 
-      if (!disabled && value.trim()) {
+      if (canSend) {
         onSend();
       }
     }
@@ -43,9 +59,11 @@ export default function ChatInput({
         <textarea
           rows={1}
           value={value}
-          onChange={(event) =>
-            onChange(event.target.value)
-          }
+          onChange={(event) => {
+            onChange(
+              event.target.value
+            );
+          }}
           onKeyDown={handleKeyDown}
           placeholder="Message AI Chat Assistant..."
           aria-label="Message"
@@ -55,9 +73,7 @@ export default function ChatInput({
 
         <button
           type="submit"
-          disabled={
-            disabled || !value.trim()
-          }
+          disabled={!canSend}
           className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-slate-900 text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
           aria-label={
             disabled
